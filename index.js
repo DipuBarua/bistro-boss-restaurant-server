@@ -247,6 +247,56 @@ async function run() {
             res.send(result);
         })
 
+
+        // stats/analytics - API 
+        app.get("/admin-stats", verifyToken, verifyAdmin, async (req, res) => {
+            const users = await userCollection.estimatedDocumentCount();
+            const menuItems = await menuCollection.estimatedDocumentCount();
+            const orders = await paymentCollection.estimatedDocumentCount();
+
+            // revenue calculation - not best way,because need to load all data in db
+            // const payments = await paymentCollection.find().toArray();
+            // const revenue = payments.reduce((total, payment) => total + payment.price, 0)
+
+            // other best way to aggrigate revenue
+            const result = await paymentCollection.aggregate([
+                {
+                    $group: {
+                        _id: null, //'null' means groups all documents into a single group for the aggregation.
+                        totalRevenue: { $sum: "$price" }
+                    }
+                }
+            ]).toArray();
+            const revenue = result.length > 0 ? result[0].totalRevenue : 0;
+
+
+            // Ex: testing aggrigate revenue with filter:match, limit, sort
+            const test = await paymentCollection.aggregate([
+                {
+                    $match: { status: "pending" }
+                },
+                { $limit: 5, },
+                {
+                    $group: {
+                        _id: null,
+                        total: { $sum: "$price" }
+                    }
+                },
+                { $sort: { total: -1 } },//-1 is descending and 1 is ascendidng order.
+            ]).toArray();
+            const revFilter = test.length > 0 ? test[0].total : 0;
+
+
+            res.send({
+                users,
+                menuItems,
+                orders,
+                revenue,
+                // revFilter
+            });
+        })
+
+
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
