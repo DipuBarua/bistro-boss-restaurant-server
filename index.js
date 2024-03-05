@@ -4,7 +4,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken')
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 require('dotenv').config();
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId, AggregationCursor } = require('mongodb');
 const port = process.env.PORT || 5000;
 
 
@@ -296,6 +296,48 @@ async function run() {
             });
         })
 
+
+        // API to get ordered items details - using Aggregate pipeline 
+        app.get('/order-stats', verifyToken, verifyAdmin, async (req, res) => {
+            const result = await paymentCollection.aggregate([
+                {
+                    $unwind: '$menuItemIds'
+                },
+                {
+                    $lookup: {
+                        from: 'menu',
+                        localField: 'menuItemIds',
+                        foreignField: '_id',
+                        as: "menuItems",
+                    }
+                },
+                {
+                    $unwind: '$menuItems',
+                },
+                {
+                    $group: {
+                        _id: "$menuItems.category",
+                        quantity: { $sum: 1 },//cgpt: 1 essentially means that for each document that matches the grouping criteria, it adds 1 to the sum. It's essentially counting the number of documents in each group
+                        revenue: { $sum: '$menuItems.price' }
+                    }
+                },
+                {
+                    $project: {
+                        _id: 0,//0 means doesn't show  _id
+                        category: '$_id',
+                        quantity: '$quantity',
+                        revenue: '$revenue',
+                    }
+                },
+                {
+                    $sort: { revenue: -1 },
+                }
+            ]).toArray();
+
+            return res.send(result);
+        })
+
+        // [***NOTE: You can not run the localhost:5000 with serverside data for the verifyToken security. ]
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
