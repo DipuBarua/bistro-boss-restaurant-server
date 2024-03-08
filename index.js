@@ -4,6 +4,15 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken')
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 require('dotenv').config();
+
+const formData = require('form-data');
+const Mailgun = require('mailgun.js');
+const mailgun = new Mailgun(formData);
+const mg = mailgun.client({
+    username: 'api',
+    key: process.env.MAIL_GUN_API_KEY,
+});
+
 const { MongoClient, ServerApiVersion, ObjectId, AggregationCursor } = require('mongodb');
 const port = process.env.PORT || 5000;
 
@@ -27,7 +36,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
 
         const menuCollection = client.db("bistroDB").collection("menu");
         const reviewCollection = client.db("bistroDB").collection("reviews");
@@ -231,6 +240,24 @@ async function run() {
             }
             const deleteResult = await cartCollection.deleteMany(query);
 
+            //send user mail about payment conformation using -Mailgun
+            mg.messages
+                .create(process.env.MAIL_SENDING_DOMAIN, {
+                    from: "Mailgun Sandbox <postmaster@sandbox80754ee3acd545a2baa8f1b5c7985898.mailgun.org>",
+                    to: [`dipubarua1997@gmail.com`],//here will be dinamic customar mail id
+                    subject: "Bistro Boss Order Conformation",
+                    text: "Testing some Mailgun awesomness!",
+                    html: `<Div>
+                    <h3>Thank you for your order.</h3>
+                    <p>You have paid: <strong> ${payment.price} </strong> Tk. successfully.</p>
+                    <p>Transaction id: <strong> ${payment.transactionId} </strong></p>
+                    <h3>We would like to get your feedback!</h3>
+                    </Div>`
+                })
+                .then(msg => console.log(msg)) // logs response data
+                .catch(err => console.log(err)); // logs any error`;
+
+
             res.send({ paymentResult, deleteResult });
         })
 
@@ -340,7 +367,7 @@ async function run() {
         // [***NOTE: You can not run the localhost:5000 with serverside data for the verifyToken security. ]
 
         // Send a ping to confirm a successful connection
-        await client.db("admin").command({ ping: 1 });
+        // await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
