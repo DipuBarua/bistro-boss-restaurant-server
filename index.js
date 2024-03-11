@@ -185,8 +185,10 @@ async function run() {
             res.send(result);
         })
 
-        // Users side Dashboard >>>>
-        // cart collection - API
+
+        // Users side Dashboard >>>>>>>>>>>>>>>>
+
+        // My cart collection - API
         app.get('/carts', async (req, res) => {
             const email = req.query.email;
             const query = { email: email }
@@ -261,7 +263,6 @@ async function run() {
             res.send({ paymentResult, deleteResult });
         })
 
-
         // payment history - API 
         app.get("/payments/:email", verifyToken, async (req, res) => {
             const query = { email: req.params.email };
@@ -274,6 +275,84 @@ async function run() {
             res.send(result);
         })
 
+        // add Review 
+        app.post("/review", async (req, res) => {
+            const review = req.body;
+            const result = await reviewCollection.insertOne(review);
+            res.send(result);
+        })
+
+        // user's stats
+        app.get("/user-stats/:email", async (req, res) => {
+            const userEmail = req.params.email;
+
+            const shop = await paymentCollection.aggregate([
+                {
+                    $match: { email: `${userEmail}` }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        quantity: { $sum: 1 },
+                    }
+                },
+            ]).toArray();
+
+            const menus = await paymentCollection.aggregate([
+                {
+                    $match: { email: `${userEmail}` }
+                },
+                {
+                    $unwind: "$menuItemIds",
+                },
+                {
+                    $group: {
+                        _id: null,
+                        quantity: { $sum: 1 },
+                    }
+                }
+            ]).toArray();
+
+            const orders = await cartCollection.aggregate([
+                {
+                    $match: { email: `${userEmail}` }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        quantity: { $sum: 1 },
+                    }
+                },
+            ]).toArray();
+
+            const reviews = await reviewCollection.aggregate([
+                {
+                    $match: { email: `${userEmail}` }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        quantity: { $sum: 1 },
+                    }
+                },
+            ]).toArray();
+
+
+            const totalShop = shop.length > 0 ? shop[0].quantity : 0;
+            const totalMenus = menus.length > 0 ? menus[0].quantity : 0;
+            const totalOrder = orders.length > 0 ? orders[0].quantity : 0;
+            const totalReviews = reviews.length > 0 ? reviews[0].quantity : 0;
+
+            res.send({
+                totalShop,
+                totalMenus,
+                totalOrder,
+                totalReviews,
+            })
+        })
+
+
+        // Admin side Deshboard >>>>>>>>>>>>> 
 
         // stats/analytics - API 
         app.get("/admin-stats", verifyToken, verifyAdmin, async (req, res) => {
@@ -357,7 +436,7 @@ async function run() {
                     }
                 },
                 {
-                    $sort: { revenue: -1 },
+                    // $sort: { revenue: -1 },
                 }
             ]).toArray();
 
