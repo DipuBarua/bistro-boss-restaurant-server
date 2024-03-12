@@ -43,6 +43,7 @@ async function run() {
         const cartCollection = client.db("bistroDB").collection("carts");
         const userCollection = client.db("bistroDB").collection("users");
         const paymentCollection = client.db("bistroDB").collection("payments");
+        const bookingCollection = client.db("bistroDB").collection("bookings");
 
         // jwt - API 
         app.post("/jwt", async (req, res) => {
@@ -442,6 +443,48 @@ async function run() {
 
             return res.send(result);
         })
+
+
+        // Bookings collection - API
+
+        app.post("/bookings", verifyToken, async (req, res) => {
+            const bookingInfo = req.body;
+            const result = await bookingCollection.insertOne(bookingInfo);
+            res.send(result);
+        })
+
+        app.get("/bookings/:email", verifyToken, async (req, res) => {
+            const query = { email: req.params.email };
+            const result = await bookingCollection.find(query).toArray();
+            res.send(result);
+        })
+
+        app.delete("/booking/:id", verifyToken, async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const deleteBooking = await bookingCollection.deleteOne(query);
+            res.send(deleteBooking);
+        })
+        // admin side bookings api
+        app.get("/bookings", verifyToken, verifyAdmin, async (req, res) => {
+            const result = await bookingCollection.find().toArray();
+            // const totalBookings = await bookingCollection.estimatedDocumentCount();
+            res.send(result);
+        })
+
+        app.patch("/booking/:id", verifyToken, verifyAdmin, async (req, res) => {
+            const bookingId = req.params.id;
+            const filter = { _id: new ObjectId(bookingId) };
+            const updateBooking = {
+                $set: {
+                    status: "Done",
+                }
+            }
+            const result = await bookingCollection.updateOne(filter, updateBooking);
+            res.send(result);
+        })
+
+
 
         // [***NOTE: You can not run the localhost:5000 with serverside data for the verifyToken security. ]
 
