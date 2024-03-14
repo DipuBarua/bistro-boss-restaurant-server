@@ -338,17 +338,30 @@ async function run() {
                 },
             ]).toArray();
 
+            const bookings = await bookingCollection.aggregate([
+                {
+                    $match: { email: `${userEmail}` }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        quantity: { $sum: 1 },
+                    }
+                },
+            ]).toArray();
 
             const totalShop = shop.length > 0 ? shop[0].quantity : 0;
             const totalMenus = menus.length > 0 ? menus[0].quantity : 0;
             const totalOrder = orders.length > 0 ? orders[0].quantity : 0;
             const totalReviews = reviews.length > 0 ? reviews[0].quantity : 0;
+            const totalbookings = bookings.length > 0 ? bookings[0].quantity : 0;
 
             res.send({
                 totalShop,
                 totalMenus,
                 totalOrder,
                 totalReviews,
+                totalbookings
             })
         })
 
@@ -436,9 +449,9 @@ async function run() {
                         revenue: '$revenue',
                     }
                 },
-                {
-                    // $sort: { revenue: -1 },
-                }
+                // {
+                //     $sort: { revenue: -1 },
+                // }
             ]).toArray();
 
             return res.send(result);
@@ -447,29 +460,43 @@ async function run() {
 
         // Bookings collection - API
 
-        app.post("/bookings", verifyToken, async (req, res) => {
+        app.post("/bookings", async (req, res) => {
             const bookingInfo = req.body;
             const result = await bookingCollection.insertOne(bookingInfo);
             res.send(result);
         })
 
-        app.get("/bookings/:email", verifyToken, async (req, res) => {
+        app.get("/bookings/:email", async (req, res) => {
             const query = { email: req.params.email };
-            const result = await bookingCollection.find(query).toArray();
-            res.send(result);
+            const myBookings = await bookingCollection.find(query).toArray();
+            const totalBookings = await bookingCollection.aggregate([
+                {
+                    $match: { email: `${req.params.email}` }
+                },
+                {
+                    $group: {
+                        _id: null,
+                        count: { $sum: 1 },
+                    }
+                }
+            ]).toArray();
+            const total = totalBookings.length > 0 ? totalBookings[0].count : 0;
+
+            res.send({ myBookings, total });
         })
 
-        app.delete("/booking/:id", verifyToken, async (req, res) => {
+        app.delete("/booking/:id", async (req, res) => {
             const id = req.params.id;
             const query = { _id: new ObjectId(id) };
             const deleteBooking = await bookingCollection.deleteOne(query);
             res.send(deleteBooking);
         })
         // admin side bookings api
-        app.get("/bookings", verifyToken, verifyAdmin, async (req, res) => {
-            const result = await bookingCollection.find().toArray();
-            // const totalBookings = await bookingCollection.estimatedDocumentCount();
-            res.send(result);
+        app.get("/bookings", async (req, res) => {
+            const allBookings = await bookingCollection.find().toArray();
+            const totalBookings = await bookingCollection.estimatedDocumentCount();
+            console.log(totalBookings);
+            res.send({ allBookings, totalBookings });
         })
 
         app.patch("/booking/:id", verifyToken, verifyAdmin, async (req, res) => {
